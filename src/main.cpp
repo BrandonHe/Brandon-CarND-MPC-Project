@@ -116,18 +116,18 @@ int main() {
 
           Eigen::VectorXd state_vector(6);
           
-          /*
+          
           double latency = 0.1;
           double Lf = 2.67;
 
           double x = v * cos(psi) * latency;
-          psi = v / Lf * steer_value * latency;
+          psi = -v / Lf * steer_value * latency;
           //v = v + throttle_value * latency;
 
           state_vector << x, 0, psi, v, cte, epsi;
-          */
+          
 
-          state_vector << 0, 0, 0, v, cte, epsi;
+          //state_vector << 0, 0, 0, v, cte, epsi;
 
           auto results = mpc.Solve(state_vector, coeffs);
 
