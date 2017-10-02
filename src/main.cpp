@@ -91,6 +91,8 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          //double delta = j[1]["steering_angle"];
+          //double a = j[1]["throttle"];
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -98,20 +100,50 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
-          steer_value = j[1]["steering_angle"];
-          if(steer_value > 1.0) {
+          Eigen::VectorXd waypoints_x = Eigen::VectorXd(ptsx.size());
+          Eigen::VectorXd waypoints_y = Eigen::VectorXd(ptsy.size());
+
+          for (int i = 0; i < ptsx.size(); ++i) {
+            double x = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
+            double y = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
+            waypoints_x[i] = x;
+            waypoints_y[i] = y;
+          }
+
+          auto coeffs = polyfit(waypoints_x, waypoints_y, 3);
+          double cte = polyeval(coeffs, 0);
+          double epsi = -atan(coeffs[1]);
+
+          Eigen::VectorXd state_vector(6);
+          //double latency = 0.1;
+          //double Lf = 2.67;
+
+          //double x = v * cos(psi) * latency;
+          //psi = v / Lf * delta * latency;
+          //v = v + a * latency;
+
+          //state_vector << x, 0, psi, v, cte, epsi;
+          state_vector << 0, 0, 0, v, cte, epsi;
+
+
+          auto results = mpc.Solve(state_vector, coeffs);
+          double steer_value = j[1]["steering_angle"];
+          double throttle_value = j[1]["throttle"];
+
+          steer_value = results[0];
+          if (steer_value > 1.0) {
             steer_value = 1.0;
           } else if (steer_value < -1.0) {
             steer_value = - 1.0;
           }
-          throttle_value = j[1]["throttle"];
-          if(throttle_value > 1.0) {
+
+          throttle_value = results[1];
+          if (throttle_value > 1.0) {
             throttle_value = 1.0;
           } else if (throttle_value < -1.0) {
             throttle_value = -1.0;
           }
+
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -125,9 +157,20 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-
+          /*
+          for (int i = 2; i < results.size(); ++i) {
+            if (i % 2 == 0) {
+              mpc_x_vals.push_back(results[i]);
+            } else {
+              mpc_y_vals.push_back(results[i]);
+            }
+          }
+          */
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
+      
+          //msgJson["mpc_x"] = results.X;
+          //msgJson["mpc_y"] = results.Y;
 
           //Display the waypoints/reference line
           vector<double> next_x_vals;
@@ -135,7 +178,10 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
+          for (int i = 0; i < ptsx.size(); ++i) {
+            next_x_vals.push_back(waypoints_x[i]);
+            next_y_vals.push_back(waypoints_y[i]);
+          }
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
