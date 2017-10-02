@@ -3,6 +3,69 @@ Self-Driving Car Engineer Nanodegree Program
 
 ---
 
+## Implementation
+---
+### Description
+This project contains my solution to implementation the Model Predictive Control (MPC) to drive the car around the track.
+
+[![ScreenShot](./build/20171003.png)](https://youtu.be/mAhTCOEzrok)
+
+### The Model
+- Student describes their model in detail. This includes the state, actuators and update equations.
+
+MPC model is simulating actuator inputs to predict trajectory and select trajectory according to minimum cost. The model used in this project is Kinematic Bicycle Model which consists of following states:
+
+`x`: The x position of the vehicle.<br>
+`y`: The y position of the vehicle.<br>
+`psi`: The orientation of the vehicle.<br>
+`v`: The current velocity.<br>
+`cte`: The Cross Track Error.<br>
+`epsi`: The error in orientation.<br>
+
+The update equations are:
+```
+fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+fg[1 + psi_start + t] = psi1 - (psi0 - v0/Lf * delta * dt);
+fg[1 + v_start + t] = v1 - (v0 + a * dt);
+fg[1 + cte_start + t] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) - v0/Lf * delta * dt);
+```
+### Timestep Length and Elapsed Duration(N & dt)
+- Student discusses the reasoning behind the chosen N (timestep length) and dt (elapsed duration between timesteps) values. Additionally the student details the previous values tried.
+
+Firstly, according to the learnt from lesson, I chosen with N=25 and dt=0.05. The car was swinging sharply and out of the road very fast. So I choose N=20 and dt=0.05, the car was still swinging and out of the road,it's easy to miscalculate, I chosen N=10, dt=0.05, decrease the control input helps the car drivers longer than before, but still swinging was not controlled. I chosen to increase the dt=0.2, N=10, this reduced the car drive swinging, but the calculation is a little slower, finally, I chose the N = 10, dt = 0.15 to calculate the trajectory. The car reached max speed of 80 MPH on the road.
+
+### Polynomial Fitting and MPC Preprocessing
+- A polynomial is fitted to waypoints.
+
+The waypoints from simulator are global coordinate system, but we have to transform them because all computations are performed in the vehicle coordinate system.
+```
+double x = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
+double y = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
+```
+### Latency
+- The student implements Model Predictive Control that handles a 100 millisecond latency. Student provides details on how they deal with latency.
+
+The state is predicted with latency 100ms and then process the Solver, the latency in the module is proccessed as below:
+```
+auto coeffs = polyfit(waypoints_x, waypoints_y, 3);
+double cte = polyeval(coeffs, 0);
+double epsi = -atan(coeffs[1]);
+
+Eigen::VectorXd state_vector(6);
+          
+double latency = 0.1;
+double Lf = 2.67;
+
+double x = v * cos(psi) * latency;
+psi = -v / Lf * steer_value * latency;
+
+state_vector << x, 0, psi, v, cte, epsi;
+
+auto results = mpc.Solve(state_vector, coeffs);
+```
+
 ## Dependencies
 
 * cmake >= 3.5
