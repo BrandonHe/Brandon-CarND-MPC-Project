@@ -91,8 +91,6 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-          //double steer_value = j[1]["steering_angle"];
-          //double throttle_value = j[1]["throttle"];
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -103,6 +101,7 @@ int main() {
           Eigen::VectorXd waypoints_x = Eigen::VectorXd(ptsx.size());
           Eigen::VectorXd waypoints_y = Eigen::VectorXd(ptsy.size());
 
+          // Polynomial fitting
           for (int i = 0; i < ptsx.size(); ++i) {
             double x = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
             double y = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
@@ -110,40 +109,34 @@ int main() {
             waypoints_y[i] = y;
           }
 
-          // At current time t=0, the car's state are px=0, py=0, psi=0
+          // Step1: At current time t=0, the car's state are px=0, py=0, psi=0
           auto coeffs = polyfit(waypoints_x, waypoints_y, 3);
+          // cte = desired_y - actual_y
+          //     = polyeval(coeffs, px) - py
           double cte = polyeval(coeffs, 0);
+          // epsi = actual_psi-desired_psi
+          //      = psi - atan(coeffs[1] + 2*coeffs[2]*px + 3*coeffs[3]*px*px)
           double epsi = -atan(coeffs[1]);
-
-          Eigen::VectorXd state_vector(6);
           
-          // Predict states for t = latency
           double latency = 0.1;
           double Lf = 2.67;
 
           double delta = j[1]["steering_angle"];
           double a = j[1]["throttle"];
+
+          // Step2: Predict states for t = latency, due to car coordinate system, 
+          // px0=py0=psi0=0
           // Optional to convert miles per hour to meter per second
           v *= 0.44704;
-
-          px = 0 + v * cos(-delta) * latency;
+          px = 0 + v * cos(-delta) * latency; 
           py = 0 + v * sin(-delta) * latency;
-          psi = - v * delta * latency / Lf;
-          //epsi = epsi + v * delta * latency / Lf;
-          //cte = cte + v * sin(epsi) * latency;
+          psi = 0 - v * delta * latency / Lf;
           v = v + a * latency;
           cte = polyeval(coeffs, px) - 0;  // since py0=0
           epsi = atan(coeffs[1]+2*coeffs[2]*px + 3*coeffs[3]*px*px);
+
+          Eigen::VectorXd state_vector(6);
           state_vector << px, py, psi, v, cte, epsi;
-          /*
-          double x = v * cos(psi) * latency;
-          psi = -v / Lf * steer_value * latency;
-          //v = v + throttle_value * latency;
-
-          state_vector << x, 0, psi, v, cte, epsi;
-          */
-
-          //state_vector << 0, 0, 0, v, cte, epsi;
 
           auto results = mpc.Solve(state_vector, coeffs);
 
