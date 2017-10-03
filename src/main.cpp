@@ -91,8 +91,8 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-          double steer_value = j[1]["steering_angle"];
-          double throttle_value = j[1]["throttle"];
+          //double steer_value = j[1]["steering_angle"];
+          //double throttle_value = j[1]["throttle"];
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -110,35 +110,51 @@ int main() {
             waypoints_y[i] = y;
           }
 
+          // At current time t=0, the car's state are px=0, py=0, psi=0
           auto coeffs = polyfit(waypoints_x, waypoints_y, 3);
           double cte = polyeval(coeffs, 0);
           double epsi = -atan(coeffs[1]);
 
           Eigen::VectorXd state_vector(6);
           
-          
+          // Predict states for t = latency
           double latency = 0.1;
           double Lf = 2.67;
 
+          double delta = j[1]["steering_angle"];
+          double a = j[1]["throttle"];
+          // Optional to convert miles per hour to meter per second
+          v *= 0.44704;
+
+          px = 0 + v * cos(-delta) * latency;
+          py = 0 + v * sin(-delta) * latency;
+          psi = - v * delta * latency / Lf;
+          //epsi = epsi + v * delta * latency / Lf;
+          //cte = cte + v * sin(epsi) * latency;
+          v = v + a * latency;
+          cte = polyeval(coeffs, px) - 0;  // since py0=0
+          epsi = atan(coeffs[1]+2*coeffs[2]*px + 3*coeffs[3]*px*px);
+          state_vector << px, py, psi, v, cte, epsi;
+          /*
           double x = v * cos(psi) * latency;
           psi = -v / Lf * steer_value * latency;
           //v = v + throttle_value * latency;
 
           state_vector << x, 0, psi, v, cte, epsi;
-          
+          */
 
           //state_vector << 0, 0, 0, v, cte, epsi;
 
           auto results = mpc.Solve(state_vector, coeffs);
 
-          steer_value = results[0];
+          auto steer_value = results[0];
           if (steer_value > 1.0) {
             steer_value = 1.0;
           } else if (steer_value < -1.0) {
             steer_value = - 1.0;
           }
 
-          throttle_value = results[1];
+          auto throttle_value = results[1];
           if (throttle_value > 1.0) {
             throttle_value = 1.0;
           } else if (throttle_value < -1.0) {
