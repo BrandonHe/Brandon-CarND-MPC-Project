@@ -8,7 +8,7 @@ Self-Driving Car Engineer Nanodegree Program
 ### Description
 This project contains my solution to implementation the Model Predictive Control (MPC) to drive the car around the track.
 
-[![ScreenShot](./build/20171003.png)](https://youtu.be/mAhTCOEzrok)
+[![ScreenShot](./build/2017-10-03-11.29.32.png)](https://youtu.be/EKf2ZoMHnL0)
 
 ### The Model
 - Student describes their model in detail. This includes the state, actuators and update equations.
@@ -34,7 +34,11 @@ fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) - v0/Lf * delta * dt);
 ### Timestep Length and Elapsed Duration(N & dt)
 - Student discusses the reasoning behind the chosen N (timestep length) and dt (elapsed duration between timesteps) values. Additionally the student details the previous values tried.
 
-Firstly, according to the learnt from lesson, I chosen with N=25 and dt=0.05. The car was swinging sharply and out of the road very fast. So I choose N=20 and dt=0.05, the car was still swinging and out of the road,it's easy to miscalculate, I chosen N=10, dt=0.05, decrease the control input helps the car drivers longer than before, but still swinging was not controlled. I chosen to increase the dt=0.2, N=10, this reduced the car drive swinging, but the calculation is a little slower, finally, I chose the N = 10, dt = 0.15 to calculate the trajectory. The car reached max speed of 80 MPH on the road.
+Firstly, according to the learnt from lesson, I chosen with N=25 and dt=0.05. The car was swinging sharply and out of the road very fast. So I choose N=20 and dt=0.05, the car was still swinging and out of the road,it's easy to miscalculate, I chosen N=10, dt=0.05, decrease the control input helps the car drivers longer than before, but still swinging was not controlled. I chosen to increase the dt=0.2, N=10, this reduced the car drive swinging, but the calculation is a little slower, finally, I chose the N = 10, dt = 0.15 to calculate the trajectory. The car reached max speed of 100 MPH on the road. 
+Here are the conclusion:
+- Smaller dt has finer resolution but require high N for given horizon (N*dt).
+- Larger N than N=10 takes longer computational time which effectively increase the latency.
+- Smaller value thant N=10 is not enough to caculate the trajectory.
 
 ### Polynomial Fitting and MPC Preprocessing
 - A polynomial is fitted to waypoints.
@@ -47,21 +51,37 @@ double y = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
 ### Latency
 - The student implements Model Predictive Control that handles a 100 millisecond latency. Student provides details on how they deal with latency.
 
+I chosen to update the car's state after polynomial fitting with 2 steps, first to caculate the current time t=0, here according to car's coordinate px=0, py=0, psi=0, and caculate cte and epsi in step1, in step2 I caculate the prediction of all states for t=lantency.
 The state is predicted with latency 100ms and then process the Solver, the latency in the module is proccessed as below:
 ```
+// Step1: At current time t=0, the car's state are px=0, py=0, psi=0
 auto coeffs = polyfit(waypoints_x, waypoints_y, 3);
+// cte = desired_y - actual_y
+//     = polyeval(coeffs, px) - py
 double cte = polyeval(coeffs, 0);
+// epsi = actual_psi-desired_psi
+//      = psi - atan(coeffs[1] + 2*coeffs[2]*px + 3*coeffs[3]*px*px)
 double epsi = -atan(coeffs[1]);
-
-Eigen::VectorXd state_vector(6);
           
 double latency = 0.1;
 double Lf = 2.67;
 
-double x = v * cos(psi) * latency;
-psi = -v / Lf * steer_value * latency;
+double delta = j[1]["steering_angle"];
+double a = j[1]["throttle"];
+          
+// Step2: Predict states for t = latency, due to car coordinate system, 
+// px0=py0=psi0=0
+// Optional to convert miles per hour to meter per second
+v *= 0.44704;
+px = 0 + v * cos(-delta) * latency; 
+py = 0 + v * sin(-delta) * latency;
+psi = 0 - v * delta * latency / Lf;
+v = v + a * latency;
+cte = polyeval(coeffs, px) - 0;  // since py0=0
+epsi = atan(coeffs[1]+2*coeffs[2]*px + 3*coeffs[3]*px*px);
 
-state_vector << x, 0, psi, v, cte, epsi;
+Eigen::VectorXd state_vector(6);
+state_vector << px, py, psi, v, cte, epsi;
 
 auto results = mpc.Solve(state_vector, coeffs);
 ```
